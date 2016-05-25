@@ -380,6 +380,9 @@ if ( ! class_exists( 'WooCommerce_PDF_Invoices_Export' ) ) {
 			$dompdf = apply_filters( 'wpo_wcpdf_after_dompdf_render', $dompdf, $html, $template_type, $order_ids );
 			do_action( 'wpo_wcpdf_after_pdf', $template_type );
 
+			// Modify orders on completed pdf generation
+			do_action( 'wpo_wcpdf_touch_orders', $order_ids );
+
 			// Try to clean up a bit of memory
 			unset($complete_pdf);
 
