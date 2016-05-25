@@ -29,7 +29,7 @@ if ( !class_exists( 'WooCommerce_PDF_Invoices_Writepanels' ) ) {
 			add_filter( 'woocommerce_shop_order_search_fields', array( $this, 'search_fields' ) );
 
 			$this->bulk_actions = array(
-				'invoice'		=> __( 'PDF Invoices', 'wpo_wcpdf' ),
+				//'invoice'		=> __( 'PDF Invoices', 'wpo_wcpdf' ),
 				'packing-slip'	=> __( 'PDF Packing Slips', 'wpo_wcpdf' ),
 			);
 		}
@@ -67,7 +67,7 @@ if ( !class_exists( 'WooCommerce_PDF_Invoices_Writepanels' ) ) {
 				}
 			}
 		}
-		
+
 		/**
 		 * Add the scripts
 		 */
@@ -79,37 +79,37 @@ if ( !class_exists( 'WooCommerce_PDF_Invoices_Writepanels' ) ) {
 					array( 'jquery' ),
 					WooCommerce_PDF_Invoices::$version
 				);
-				wp_localize_script(  
-					'wpo-wcpdf',  
-					'wpo_wcpdf_ajax',  
+				wp_localize_script(
+					'wpo-wcpdf',
+					'wpo_wcpdf_ajax',
 					array(
-						// 'ajaxurl'		=> add_query_arg( 'action', 'generate_wpo_wcpdf', admin_url( 'admin-ajax.php' ) ), // URL to WordPress ajax handling page  
-						'ajaxurl'		=> admin_url( 'admin-ajax.php' ), // URL to WordPress ajax handling page  
+						// 'ajaxurl'		=> add_query_arg( 'action', 'generate_wpo_wcpdf', admin_url( 'admin-ajax.php' ) ), // URL to WordPress ajax handling page
+						'ajaxurl'		=> admin_url( 'admin-ajax.php' ), // URL to WordPress ajax handling page
 						'nonce'			=> wp_create_nonce('generate_wpo_wcpdf'),
 						'bulk_actions'	=> array_keys( apply_filters( 'wpo_wcpdf_bulk_actions', $this->bulk_actions ) ),
-					)  
-				);  
+					)
+				);
 			}
-		}	
-			
+		}
+
 		/**
 		 * Is order page
 		 */
 		public function is_order_edit_page() {
 			global $post_type;
 			if( $post_type == 'shop_order' ) {
-				return true;	
+				return true;
 			} else {
 				return false;
 			}
-		}	
-			
+		}
+
 		/**
 		 * Add PDF actions to the orders listing
 		 */
 		public function add_listing_actions( $order ) {
 			// do not show buttons for trashed orders
-			if ( $order->status == 'trash' ) {
+			if ( in_array( $order->status, array( 'trashed', 'cancelled', 'shipped', 'completed' ) ) ) {
 				return;
 			}
 
@@ -126,7 +126,7 @@ if ( !class_exists( 'WooCommerce_PDF_Invoices_Writepanels' ) ) {
 				),
 			);
 
-			$listing_actions = apply_filters( 'wpo_wcpdf_listing_actions', $listing_actions, $order );			
+			$listing_actions = apply_filters( 'wpo_wcpdf_listing_actions', $listing_actions, $order );
 
 			foreach ($listing_actions as $action => $data) {
 				?>
@@ -136,7 +136,7 @@ if ( !class_exists( 'WooCommerce_PDF_Invoices_Writepanels' ) ) {
 				<?php
 			}
 		}
-		
+
 		/**
 		 * Create additional Shop Order column for Invoice Numbers
 		 * @param array $columns shop order columns
@@ -195,7 +195,7 @@ if ( !class_exists( 'WooCommerce_PDF_Invoices_Writepanels' ) ) {
 						if ( isset( $this->general_settings['my_account_restrict'] ) && in_array( $order->status, array_keys( $this->general_settings['my_account_restrict'] ) ) ) {
 							$invoice_allowed = true;
 						} else {
-							$invoice_allowed = false;							
+							$invoice_allowed = false;
 						}
 						break;
 				}
@@ -209,7 +209,7 @@ if ( !class_exists( 'WooCommerce_PDF_Invoices_Writepanels' ) ) {
 				$actions['invoice'] = array(
 					'url'  => $pdf_url,
 					'name' => apply_filters( 'wpo_wcpdf_myaccount_button_text', __( 'Download invoice (PDF)', 'wpo_wcpdf' ) )
-				);				
+				);
 			}
 
 			return apply_filters( 'wpo_wcpdf_myaccount_actions', $actions, $order );
@@ -251,11 +251,13 @@ if ( !class_exists( 'WooCommerce_PDF_Invoices_Writepanels' ) ) {
 					'url'		=> wp_nonce_url( admin_url( 'admin-ajax.php?action=generate_wpo_wcpdf&template_type=invoice&order_ids=' . $post_id ), 'generate_wpo_wcpdf' ),
 					'alt'		=> esc_attr__( 'PDF Invoice', 'wpo_wcpdf' ),
 					'title'		=> __( 'PDF Invoice', 'wpo_wcpdf' ),
+					'class'  => 'button',
 				),
 				'packing-slip'	=> array (
 					'url'		=> wp_nonce_url( admin_url( 'admin-ajax.php?action=generate_wpo_wcpdf&template_type=packing-slip&order_ids=' . $post_id ), 'generate_wpo_wcpdf' ),
 					'alt'		=> esc_attr__( 'PDF Packing Slip', 'wpo_wcpdf' ),
 					'title'		=> __( 'PDF Packing Slip', 'wpo_wcpdf' ),
+					'class' => 'button',
 				),
 			);
 
@@ -265,11 +267,14 @@ if ( !class_exists( 'WooCommerce_PDF_Invoices_Writepanels' ) ) {
 			<ul class="wpo_wcpdf-actions">
 				<?php
 				foreach ($meta_actions as $action => $data) {
-					printf('<li><a href="%1$s" class="button" target="_blank" alt="%2$s">%3$s</a></li>', $data['url'], $data['alt'],$data['title']);
+					printf('<li><a href="%1$s" class="%4$s" target="_blank" alt="%2$s">%3$s</a></li>', $data['url'], $data['alt'],$data['title'],$data['class']);
 				}
 				?>
 			</ul>
 			<?php
+			$invoice_exists = get_post_meta( $post_id, '_wcpdf_invoice_exists', true );
+			if ( $invoice_exists )
+				print '<p class="warning">Warning: You have already printed a packing slip for this order. If this order is being reshipped, please clear all fields in the "PDF Invoice data" panel.</p>';
 		}
 
 		/**
@@ -279,7 +284,7 @@ if ( !class_exists( 'WooCommerce_PDF_Invoices_Writepanels' ) ) {
 			$invoice_exists = get_post_meta( $post->ID, '_wcpdf_invoice_exists', true );
 			$invoice_number = get_post_meta($post->ID,'_wcpdf_invoice_number',true);
 			$invoice_date = get_post_meta($post->ID,'_wcpdf_invoice_date',true);
-			
+
 			do_action( 'wpo_wcpdf_meta_box_start', $post->ID );
 
 			?>

@@ -20,7 +20,7 @@ if ( ! class_exists( 'WooCommerce_PDF_Invoices_Export' ) ) {
 		/**
 		 * Constructor
 		 */
-		public function __construct() {					
+		public function __construct() {
 			global $woocommerce;
 			$this->order = new WC_Order('');
 			$this->general_settings = get_option('wpo_wcpdf_general_settings');
@@ -174,12 +174,12 @@ if ( ! class_exists( 'WooCommerce_PDF_Invoices_Export' ) ) {
 
 			$tmp_base = $this->get_tmp_base();
 			if (!$old_tmp) {
-				// check if tmp folder exists => if not, initialize 
+				// check if tmp folder exists => if not, initialize
 				if ( !@is_dir( $tmp_base ) ) {
 					$this->init_tmp( $tmp_base );
 				}
 			}
-			
+
 			if ( empty( $type ) ) {
 				return $tmp_base;
 			}
@@ -224,11 +224,11 @@ if ( ! class_exists( 'WooCommerce_PDF_Invoices_Export' ) ) {
 		public function get_tmp_base () {
 			// wp_upload_dir() is used to set the base temp folder, under which a
 			// 'wpo_wcpdf' folder and several subfolders are created
-			// 
+			//
 			// wp_upload_dir() will:
 			// * default to WP_CONTENT_DIR/uploads
 			// * UNLESS the ‘UPLOADS’ constant is defined in wp-config (http://codex.wordpress.org/Editing_wp-config.php#Moving_uploads_folder)
-			// 
+			//
 			// May also be overridden by the wpo_wcpdf_tmp_path filter
 
 			$upload_dir = wp_upload_dir();
@@ -236,7 +236,7 @@ if ( ! class_exists( 'WooCommerce_PDF_Invoices_Export' ) ) {
 			$tmp_base = trailingslashit( apply_filters( 'wpo_wcpdf_tmp_path', $upload_base . 'wpo_wcpdf/' ) );
 			return $tmp_base;
 		}
-		
+
 		/**
 		 * Generate the template output
 		 */
@@ -279,14 +279,14 @@ if ( ! class_exists( 'WooCommerce_PDF_Invoices_Export' ) ) {
 				}
 
 				// Set the invoice number
-				if ( $template_type == 'invoice' ) {
+				if ( $template_type == 'invoice' || $template_type == 'packing-slip' ) {
 					$this->set_invoice_number( $order_id );
 				}
 
 				$output_html[$order_id] = $this->get_template($template);
 
 				// store meta to be able to check if an invoice for an order has been created already
-				if ( $template_type == 'invoice' ) {
+				if ( $template_type == 'invoice' || $template_type == 'packing-slip' ) {
 					update_post_meta( $order_id, '_wcpdf_invoice_exists', 1 );
 				}
 
@@ -314,13 +314,13 @@ if ( ! class_exists( 'WooCommerce_PDF_Invoices_Export' ) ) {
 
 			if (!file_exists($template_wrapper)) {
 				throw new Exception('Template wrapper not found! Check if the following file exists: <pre>'.$template_wrapper.'</pre><br/>');
-			}		
+			}
 
 			$complete_document = $this->get_template($template_wrapper);
 
 			// Try to clean up a bit of memory
 			unset($this->output_body);
-			
+
 			// clean up special characters
 			$complete_document = utf8_decode(mb_convert_encoding($complete_document, 'HTML-ENTITIES', 'UTF-8'));
 
@@ -393,7 +393,7 @@ if ( ! class_exists( 'WooCommerce_PDF_Invoices_Export' ) ) {
 			$dompdf = $this->generate_pdf( $template_type, $order_ids );
 			$dompdf->stream($filename);
 		}
-		
+
 		/**
 		 * Get PDF
 		 */
@@ -426,6 +426,18 @@ if ( ! class_exists( 'WooCommerce_PDF_Invoices_Export' ) ) {
 			// Process oldest first: reverse $order_ids array
 			$order_ids = array_reverse($order_ids);
 
+			// Check if order status is not suitable for generation
+			foreach($order_ids as $order_id) {
+				$status = get_post_status( $order_id );
+				if ( in_array( $status, array( 'wc-trashed', 'wc-cancelled', 'wc-shipped', 'wc-completed' ) ) ) {
+						$problem_orders[] = $order_id;
+				}
+			}
+			if ( !empty( $problem_orders ) ) {
+				$problem_orders_str = implode(', ', $problem_orders );
+				wp_die( __( 'Some orders in your selection have order statuses not suitable for packing slip generation, or already have packing slips generated. Please remove the following orders from your selection and try again: ' . $problem_orders_str, 'wpo_wcpdf' ) );
+			}
+
 			// Check the user privileges
 			if( apply_filters( 'wpo_wcpdf_check_privs', !current_user_can( 'manage_woocommerce_orders' ) && !current_user_can( 'edit_shop_orders' ) && !isset( $_GET['my-account'] ), $order_ids ) ) {
 				wp_die( __( 'You do not have sufficient permissions to access this page.', 'wpo_wcpdf' ) );
@@ -439,7 +451,7 @@ if ( ! class_exists( 'WooCommerce_PDF_Invoices_Export' ) ) {
 				}
 
 				// Get user_id of order
-				$this->order = new WC_Order ( $order_ids[0] );	
+				$this->order = new WC_Order ( $order_ids[0] );
 
 				// Check if current user is owner of order IMPORTANT!!!
 				if ( $this->order->user_id != get_current_user_id() ) {
@@ -448,18 +460,18 @@ if ( ! class_exists( 'WooCommerce_PDF_Invoices_Export' ) ) {
 
 				// if we got here, we're safe to go!
 			}
-		
+
 			// Generate the output
 			$template_type = $_GET['template_type'];
 			// die($this->process_template( $template_type, $order_ids )); // or use the filter switch below!
-			
+
 			if (apply_filters('wpo_wcpdf_output_html', false, $template_type)) {
 				// Output html to browser for debug
 				// NOTE! images will be loaded with the server path by default
 				// use the wpo_wcpdf_use_path filter (return false) to change this to http urls
 				die($this->process_template( $template_type, $order_ids ));
 			}
-		
+
 			if ( !($pdf = $this->get_pdf( $template_type, $order_ids )) ) {
 				exit;
 			}
@@ -478,7 +490,7 @@ if ( ! class_exists( 'WooCommerce_PDF_Invoices_Export' ) ) {
 			} else {
 				header('Content-Description: File Transfer');
 				header('Content-Type: application/octet-stream');
-				header('Content-Disposition: attachment; filename="'.$filename.'"'); 
+				header('Content-Disposition: attachment; filename="'.$filename.'"');
 				header('Content-Transfer-Encoding: binary');
 				header('Connection: Keep-Alive');
 				header('Expires: 0');
@@ -502,7 +514,7 @@ if ( ! class_exists( 'WooCommerce_PDF_Invoices_Export' ) ) {
 				case 'invoice':
 					$name = _n( 'invoice', 'invoices', $count, 'wpo_wcpdf' );
 					$number = $this->get_display_number( $order_ids[0] );
-					break;		
+					break;
 				case 'packing-slip':
 					$name = _n( 'packing-slip', 'packing-slips', $count, 'wpo_wcpdf' );
 					$number = $this->order->get_order_number();
@@ -514,7 +526,7 @@ if ( ! class_exists( 'WooCommerce_PDF_Invoices_Export' ) ) {
 			}
 
 			if ( $count == 1 ) {
-				$suffix = $number;			
+				$suffix = $number;
 			} else {
 				$suffix = date('Y-m-d'); // 2020-11-11
 			}
@@ -525,7 +537,7 @@ if ( ! class_exists( 'WooCommerce_PDF_Invoices_Export' ) ) {
 			if ( $context == 'download' ) {
 				$filename = apply_filters( 'wpo_wcpdf_bulk_filename', $filename, $order_ids, $name, $template_type );
 			} elseif ( $context == 'attachment' ) {
-				$filename = apply_filters( 'wpo_wcpdf_attachment_filename', $filename, $number, $order_ids[0] );	
+				$filename = apply_filters( 'wpo_wcpdf_attachment_filename', $filename, $number, $order_ids[0] );
 			}
 
 			// Filter filename (use this filter instead of the above legacy filters!)
@@ -557,13 +569,13 @@ if ( ! class_exists( 'WooCommerce_PDF_Invoices_Export' ) ) {
 
 			// do not process low stock notifications, user emails etc!
 			if ( in_array( $status, array( 'no_stock', 'low_stock', 'backorder', 'customer_new_account', 'customer_reset_password' ) ) || get_post_type( $order->id ) != 'shop_order' ) {
-				return $attachments; 
+				return $attachments;
 			}
 
 			// Disable free setting check
 			$order_total = $order->get_total();
 			if ( $order_total == 0 && isset($this->general_settings['disable_free']) ) {
-				return $attachments; 
+				return $attachments;
 			}
 
 			$this->order = $order;
@@ -579,7 +591,7 @@ if ( ! class_exists( 'WooCommerce_PDF_Invoices_Export' ) ) {
 				'invoice'	=>  apply_filters( 'wpo_wcpdf_email_allowed_statuses', $invoice_allowed ), // Relevant (default) statuses: new_order, customer_invoice, customer_processing_order, customer_completed_order
 			);
 			$documents = apply_filters('wpo_wcpdf_attach_documents', $documents );
-			
+
 			foreach ($documents as $template_type => $allowed_statuses ) {
 				// convert 'lazy' status name
 				foreach ($allowed_statuses as $key => $order_status) {
@@ -616,7 +628,7 @@ if ( ! class_exists( 'WooCommerce_PDF_Invoices_Export' ) ) {
 					do_action( 'wpo_wcpdf_email_attachment', $pdf_path, $template_type );
 				}
 			}
-			
+
 			return $attachments;
 		}
 
@@ -633,7 +645,7 @@ if ( ! class_exists( 'WooCommerce_PDF_Invoices_Export' ) ) {
 
 				if ( empty($next_invoice_number) ) {
 					// First time! We start numbering from order_number or order_id
-					
+
 					// Check if $order_number is an integer
 					$order_number = ltrim($this->order->get_order_number(), '#');
 					if ( ctype_digit( (string)$order_number ) ) {
@@ -806,8 +818,8 @@ if ( ! class_exists( 'WooCommerce_PDF_Invoices_Export' ) ) {
 				include($file);
 			}
 			return ob_get_clean();
-		}			
-		
+		}
+
 		/**
 		 * Get the current order
 		 */
@@ -824,7 +836,7 @@ if ( ! class_exists( 'WooCommerce_PDF_Invoices_Export' ) ) {
 
 			$items = $this->order->get_items();
 			$data_list = array();
-		
+
 			if( sizeof( $items ) > 0 ) {
 				foreach ( $items as $item_id => $item ) {
 					// Array with data for the pdf template
@@ -832,14 +844,14 @@ if ( ! class_exists( 'WooCommerce_PDF_Invoices_Export' ) ) {
 
 					// Set the item_id
 					$data['item_id'] = $item_id;
-					
+
 					// Set the id
 					$data['product_id'] = $item['product_id'];
 					$data['variation_id'] = $item['variation_id'];
 
 					// Set item name
 					$data['name'] = $item['name'];
-					
+
 					// Set item quantity
 					$data['quantity'] = $item['qty'];
 
@@ -848,10 +860,10 @@ if ( ! class_exists( 'WooCommerce_PDF_Invoices_Export' ) ) {
 					$data['single_line_total'] = $this->wc_price( $item['line_total'] / max( 1, $item['qty'] ) );
 					$data['line_tax'] = $this->wc_price( $item['line_tax'] );
 					$data['single_line_tax'] = $this->wc_price( $item['line_tax'] / max( 1, $item['qty'] ) );
-					
+
 					$line_tax_data = maybe_unserialize( isset( $item['line_tax_data'] ) ? $item['line_tax_data'] : '' );
 					$data['tax_rates'] = $this->get_tax_rate( $item['tax_class'], $item['line_total'], $item['line_tax'], $line_tax_data );
-					
+
 					// Set the line subtotal (=before discount)
 					$data['line_subtotal'] = $this->wc_price( $item['line_subtotal'] );
 					$data['line_subtotal_tax'] = $this->wc_price( $item['line_subtotal_tax'] );
@@ -866,13 +878,13 @@ if ( ! class_exists( 'WooCommerce_PDF_Invoices_Export' ) ) {
 
 					// Pass complete item array
 					$data['item'] = $item;
-					
+
 					// Create the product to display more info
 					$data['product'] = null;
-					
+
 					$product = $this->order->get_product_from_item( $item );
-					
-					// Checking fo existance, thanks to MDesigner0 
+
+					// Checking fo existance, thanks to MDesigner0
 					if(!empty($product)) {
 						// Set the thumbnail id DEPRICATED (does not support thumbnail sizes), use thumbnail_path or thumbnail instead
 						$data['thumbnail_id'] = $this->get_thumbnail_id( $product );
@@ -882,27 +894,27 @@ if ( ! class_exists( 'WooCommerce_PDF_Invoices_Export' ) ) {
 
 						// Set the single price (turned off to use more consistent calculated price)
 						// $data['single_price'] = woocommerce_price ( $product->get_price() );
-										
+
 						// Set item SKU
 						$data['sku'] = $product->get_sku();
-		
+
 						// Set item weight
 						$data['weight'] = $product->get_weight();
-						
+
 						// Set item dimensions
 						$data['dimensions'] = $product->get_dimensions();
-					
+
 						// Pass complete product object
 						$data['product'] = $product;
-					
+
 					}
-					
+
 					// Set item meta
 					if ( version_compare( WOOCOMMERCE_VERSION, '2.4', '<' ) ) {
 						$meta = new WC_Order_Item_Meta( $item['item_meta'], $product );
 					} else {
 						// pass complete item for WC2.4+
-						$meta = new WC_Order_Item_Meta( $item, $product );						
+						$meta = new WC_Order_Item_Meta( $item, $product );
 					}
 
 					$data['meta'] = $meta->display( false, true );
@@ -913,7 +925,7 @@ if ( ! class_exists( 'WooCommerce_PDF_Invoices_Export' ) ) {
 
 			return apply_filters( 'wpo_wcpdf_order_items_data', $data_list, $this->order );
 		}
-		
+
 		/**
 		 * Gets price - formatted for display.
 		 *
@@ -925,7 +937,7 @@ if ( ! class_exists( 'WooCommerce_PDF_Invoices_Export' ) ) {
 			$item_price = 0;
 			$divider = ($type == 'single' && $item['qty'] != 0 )?$item['qty']:1; //divide by 1 if $type is not 'single' (thus 'total')
 
-			if ( ! isset( $item['line_subtotal'] ) || ! isset( $item['line_subtotal_tax'] ) ) 
+			if ( ! isset( $item['line_subtotal'] ) || ! isset( $item['line_subtotal_tax'] ) )
 				return;
 
 			if ( $tax_display == 'excl' ) {
@@ -982,7 +994,7 @@ if ( ! class_exists( 'WooCommerce_PDF_Invoices_Export' ) ) {
 
 				// if (empty($tax_class))
 				// $tax_class = 'standard';// does not appear to work anymore - get_rates does accept an empty tax_class though!
-				
+
 				$tax = new WC_Tax();
 				$taxes = $tax->get_rates( $tax_class );
 
@@ -1010,7 +1022,7 @@ if ( ! class_exists( 'WooCommerce_PDF_Invoices_Export' ) ) {
 					$tax_rates = '-';
 				}
 			}
-			
+
 			return $tax_rates;
 		}
 
@@ -1051,7 +1063,7 @@ if ( ! class_exists( 'WooCommerce_PDF_Invoices_Export' ) ) {
 		public function get_order_field( $field ) {
 			if( isset( $this->get_order()->order_custom_fields[$field] ) ) {
 				return $this->get_order()->order_custom_fields[$field][0];
-			} 
+			}
 			return;
 		}
 
@@ -1065,7 +1077,7 @@ if ( ! class_exists( 'WooCommerce_PDF_Invoices_Export' ) ) {
 		public function get_thumbnail_id ( $product ) {
 			// DEPRICATED (does not support thumbnail sizes)
 			global $woocommerce;
-	
+
 			if ( $product->variation_id && has_post_thumbnail( $product->variation_id ) ) {
 				$thumbnail_id = get_post_thumbnail_id ( $product->variation_id );
 			} elseif ( has_post_thumbnail( $product->id ) ) {
@@ -1075,7 +1087,7 @@ if ( ! class_exists( 'WooCommerce_PDF_Invoices_Export' ) ) {
 			} else {
 				$thumbnail_id = $woocommerce->plugin_url() . '/assets/images/placeholder.png';
 			}
-	
+
 			return $thumbnail_id;
 		}
 
@@ -1083,7 +1095,7 @@ if ( ! class_exists( 'WooCommerce_PDF_Invoices_Export' ) ) {
 			// Get default WooCommerce img tag (url/http)
 			$size = apply_filters( 'wpo_wcpdf_thumbnail_size', 'shop_thumbnail' );
 			$thumbnail_img_tag_url = $product->get_image( $size, array( 'title' => '' ) );
-			
+
 			// Extract the url from img
 			preg_match('/<img(.*)src(.*)=(.*)"(.*)"/U', $thumbnail_img_tag_url, $thumbnail_url );
 			// convert url to path
