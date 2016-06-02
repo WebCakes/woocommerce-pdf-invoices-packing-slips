@@ -109,7 +109,7 @@ if ( !class_exists( 'WooCommerce_PDF_Invoices_Writepanels' ) ) {
 		 */
 		public function add_listing_actions( $order ) {
 			// do not show buttons for trashed orders
-			if ( in_array( $order->status, array( 'trashed', 'cancelled', 'shipped', 'completed' ) ) ) {
+			if ( in_array( $order->status, array( 'trashed', 'cancelled', 'shipped', 'completed', 'on-hold' ) ) ) {
 				return;
 			}
 
@@ -273,8 +273,11 @@ if ( !class_exists( 'WooCommerce_PDF_Invoices_Writepanels' ) ) {
 			</ul>
 			<?php
 			$invoice_exists = get_post_meta( $post_id, '_wcpdf_invoice_exists', true );
+			$order_status = get_post_status( $post_id );
 			if ( $invoice_exists )
-				print '<p class="warning">Warning: You have already printed a packing slip for this order. If this order is being reshipped, please clear all fields in the "PDF Invoice data" panel.</p>';
+				print '<p class="warning"><b>Warning:</b> You have already printed a packing slip for this order. If this order is being reshipped, please clear all fields in the "PDF Invoice data" panel.</p>';
+			elseif ( $order_status == 'wc-on-hold' )
+				print '<p class="warning"><b>Warning:</b> This order is still set to On Hold. Ensure that the order has been verified, and change the order status to "Awaiting Shipping" prior to generating a packing slip</p>';
 		}
 
 		/**

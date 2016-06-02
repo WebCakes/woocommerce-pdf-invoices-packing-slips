@@ -432,7 +432,7 @@ if ( ! class_exists( 'WooCommerce_PDF_Invoices_Export' ) ) {
 			// Check if order status is not suitable for generation
 			foreach($order_ids as $order_id) {
 				$status = get_post_status( $order_id );
-				if ( in_array( $status, array( 'wc-trashed', 'wc-cancelled', 'wc-shipped', 'wc-completed' ) ) ) {
+				if ( in_array( $status, array( 'wc-trashed', 'wc-cancelled', 'wc-shipped', 'wc-completed', 'wc-on-hold' ) ) ) {
 						$problem_orders[] = $order_id;
 				}
 			}
